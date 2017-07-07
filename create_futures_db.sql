@@ -15,28 +15,28 @@ CREATE TABLE SRF_PRODUCTS (
 CREATE TABLE SRF_DATA (
 		DATE			DATE 					NOT NULL,
 		ID				INT  					NOT NULL,
-		SYMBOL		CHAR(5)				NOT NULL,
-		OPEN			NUMERIC				(16, 8),
-		HIGH			NUMERIC				(16, 8),
-		LOW			NUMERIC				(16, 8),
-		CLOSE			NUMERIC				(16, 8),
-		SETTLE		NUMERIC				(16, 8),
-		VOLUME		NUMERIC				(16, 8),
-		OPI			NUMERIC				(16, 8),
-		PnL			NUMERIC				(16, 8),
-		LogR			NUMERIC				(16, 8),
-		CONSTRAINT PRIM_KEY2 PRIMARY KEY (DATE, ID, SYMBOL),
+		EXP			CHAR(5)				NOT NULL,
+		OPEN			NUMERIC				(16, 4),
+		HIGH			NUMERIC				(16, 4),
+		LOW			NUMERIC				(16, 4),
+		CLOSE			NUMERIC				(16, 4),
+		SETTLE		NUMERIC				(16, 4),
+		VOL			NUMERIC				(16, 4),
+		OPI			NUMERIC				(16, 4),
+		PnL			NUMERIC				(16, 6),
+		LogR			NUMERIC				(16, 6),
+		CONSTRAINT PRIM_KEY2 PRIMARY KEY (DATE, ID, EXP),
 		CONSTRAINT FORI_KEY2 FOREIGN KEY (ID) REFERENCES SRF_PRODUCTS (ID)
 );
 
 CREATE TABLE SRF_CONTRACTS (
 		ID				INT  					NOT NULL,
-		SYMBOL		CHAR(5)				NOT NULL,
+		EXP		CHAR(5)				NOT NULL,
 		START			DATE					DEFAULT NULL,	
 		LAST			DATE					DEFAULT NULL,	
 		ROLL			DATE					DEFAULT NULL,	
 		CHAIN			INT					DEFAULT 0,	
-		CONSTRAINT PRIM_KEY3 PRIMARY KEY (ID, SYMBOL)
+		CONSTRAINT PRIM_KEY3 PRIMARY KEY (ID, EXP)
 );
 
 
@@ -79,10 +79,11 @@ INSERT INTO SRF_PRODUCTS (ID, SYMBOL, CATEGORY, EXCHANGE, MONTH, DESCRIPTION) VA
 	(4009, 'M',    'Energy', 'ICE',   'FGHJKMNQUVXZ', 'ICE UK Natural Gas'),
 	(4010, 'T',    'Energy', 'ICE',   'FGHJKMNQUVXZ', 'ICE WTI Crude Oil'),
 
-	(5001, 'GC', 'Metals', 'NYMEX', 'GHJKMQVZ', 'NYMEX Glod'),
-	(5002, 'PA', 'Metals', 'NYMEX', 'HJKMUZ', 'NYMEX Palladium'),
-	(5003, 'PL', 'Metals', 'NYMEX', 'FHJKNV', 'NYMEX Platinum'),
-	(5004, 'SI', 'Metals', 'NYMEX', 'FHJKNUZ', 'NYMEX Silver'),
+	(5001, 'GC', 'Metals', 'NYMEX', 'GHJKMQVZ', 		'NYMEX Glod'),
+	(5002, 'PA', 'Metals', 'NYMEX', 'HJKMUZ', 		'NYMEX Palladium'),
+	(5003, 'PL', 'Metals', 'NYMEX', 'FHJKNV', 		'NYMEX Platinum'),
+	(5004, 'SI', 'Metals', 'NYMEX', 'FHJKNUZ', 		'NYMEX Silver'),
+	(5005, 'HG', 'Metals', 'NYMEX', 'FGHJKMNQUVXZ', 'NYMEX Copper'),
 
 	(8001, 'C',  'Grains', 'CBOT', 'HKNUZ',    'CBOT Corn'),
 	(8002, 'SM', 'Grains', 'CBOT', 'FHKNQUVZ', 'CBOT Soybean Meal'),
