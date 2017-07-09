@@ -33,6 +33,8 @@ def uploadSRF(conn=None, srf_path='/Users/chenxu/Work/Data/Futures/SRF_20170111.
 	unregistered = defaultdict(bool)
 	wrongs       = defaultdict(bool)
 	skipped      = defaultdict(bool)
+
+	frames = []
 	
 	for sym, df in srf.groupby(level="symbol"):
 		df2 = df.xs(sym, level="symbol")
@@ -80,65 +82,8 @@ def uploadSRF(conn=None, srf_path='/Users/chenxu/Work/Data/Futures/SRF_20170111.
 				sql.loc[:, "pnl"]    = 0
 				sql.loc[:, "logr"]   = 0
 
-				"""
-				sql.loc[:, "id"]    = pid
-				sql.loc[:, "exp"]   = expiration
-				sql.loc[:, "chain"] = 0
-				sql.loc[:, "vol"]   = df2["vol"]
-				sql.loc[:, "opi"]   = df2["opi"]
-
-				op = df2["open"].copy(deep=True)
-				hi = df2["high"].copy(deep=True)
-				lo = df2["low"].copy(deep=True)
-				st = df2["settle"].copy(deep=True)
-
-				op.fillna(method="ffill", inplace=True)
-				hi.fillna(method="ffill", inplace=True)
-				lo.fillna(method="ffill", inplace=True)
-				st.fillna(method="ffill", inplace=True)
-
-				sql.loc[:, "open"] 	 = op
-				sql.loc[:, "high"] 	 = hi
-				sql.loc[:, "low"]  	 = lo
-				sql.loc[:, "close"]   = st
-				sql.loc[:, "settle"]  = st
-
-				sql.loc[:, "pnl"]     = st.pct_change()
-				sql.loc[:, "logr"]    = np.log(st).diff()
-
-				sql["vol"].fillna(0, inplace=True)
-				sql["opi"].fillna(0, inplace=True)
-				sql["pnl"].fillna(0, inplace=True)
-				sql["logr"].fillna(0, inplace=True)
-				"""
-
 				sql.reset_index(inplace=True)
-
-				sql_file = "srf_sql.tmp"
-				if os.path.exists(sql_file):
-					os.remove(sql_file)
-
-				sql.to_csv(sql_file, sep="\t", header=False, na_rep="\\N", index=False,\
-						columns=[
-						"date",
-						"id", 
-						"exp", 
-						"chain",
-						"open", 
-						"high", 
-						"low", 
-						"close", 
-						"settle", 
-						"vol", 
-						"opi", 
-						"pnl",
-						"logr"])
-
-				io = open(sql_file, "r")
-				cur.copy_from(io, "daily_data")
-				io.close()
-				os.remove(sql_file)
-
+				frames.append(sql)
 			else:
 				print("Symbol {0} in {1} is not registered!".format(root, sym_exp))
 				unregistered[root] = True
@@ -149,27 +94,61 @@ def uploadSRF(conn=None, srf_path='/Users/chenxu/Work/Data/Futures/SRF_20170111.
 	print("Finished inserting successfully!")
 
 	if len(unregistered) > 0:
-		print("\nUnregistered symbols:\n")
-		for sym in sorted(unregistered.keys()):
-			print(sym)
+		print("\nUnregistered symbols: {0}\n".format(','.join(sorted(unergistered.keys()))))
 
 	if len(wrongs) > 0:
-		print("\nWrong symbols:\n")
-		for sym in sorted(wrongs.keys()):
-			print(sym)
+		print("\nWrong symbols: {0}\n".format(','.join(sorted(wrongs.keys()))))
 
 	if len(skipped) > 0:
-		print("\nSkipped symbols:\n")
-		for sym in sorted(skipped.keys()):
-			print(sym)
+		print("\nSkipped symbols: {0}\n".format(','.join(sorted(skipped.keys()))))
+
+
+	""" Create a temporary CSV file for copying to the database """
+	results = pd.concat(frames)
+	sql_file = "sql_srf.csv"
+	print("Saving to CSV file {0} ...".format(sql_file))
+	results.to_csv(sql_file, sep="\t", header=False, na_rep="\\N", index=False,\
+			columns=[
+			"date",
+			"id", 
+			"exp", 
+			"chain",
+			"open", 
+			"high", 
+			"low", 
+			"close", 
+			"settle", 
+			"vol", 
+			"opi", 
+			"pnl",
+			"logr"])
+
+	try:
+		io = open(sql_file, "r")
+		print("Truncating daily_data table ...")
+		cur.execute('truncate table daily_data', conn)
+		print("Copying to daily_data table ...")
+		cur.copy_from(io, "daily_data")
+		io.close()
+	except IOError as e:
+		errno, strerror = e.args
+		print("I/O error ({0}) : {1}".format(errno, strerror))
+	except ValueError:
+		print("No valid integer in line.")
+	except:
+		print("Unexpected error: ", sys.exc_info()[0])
+		raise
 
 	cur.close()
+
+	return results
+
 
 
 if __name__ == "__main__":
 	
-	connection = pg.connect(host="localhost", database="futures", user="chenxu", password="postgres")
-	uploadSRF(connection)
+	connection = pg.connect(host="localhost", database="futures", user="chenxu", password="")
+	res = uploadSRF(connection)
 
 	print("Committing changes to the database ...")
 	connection.commit()

@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
 	args = parser.parse_args()
 	
-	connection = pg.connect(host="localhost", database="futures", user="chenxu", password="postgres")
+	connection = pg.connect(host="localhost", database="futures", user="chenxu", password="")
 
 	cur = connection.cursor()
 
@@ -33,6 +33,8 @@ if __name__ == "__main__":
 	years = range(args.start, today.year + 2)
 
 	missed = defaultdict(bool)
+
+	frames = []
 
 	for pid, row in cme_products.iterrows():
 		months = list(row['month'])
@@ -77,36 +79,50 @@ if __name__ == "__main__":
 				sql.loc[:, "logr"]   = 0
 
 				sql.reset_index(inplace=True)
-
-				sql_file = "cme_sql.tmp"
-				if os.path.exists(sql_file):
-					os.remove(sql_file)
-
-				sql.to_csv(sql_file, sep="\t", header=False, na_rep="\\N", index=False,\
-						columns=[
-						"date",
-						"id", 
-						"exp", 
-						"chain",
-						"open", 
-						"high", 
-						"low", 
-						"close", 
-						"settle", 
-						"vol", 
-						"opi", 
-						"pnl",
-						"logr"])
-
-				io = open(sql_file, "r")
-				cur.copy_from(io, "daily_data")
-				io.close()
-				os.remove(sql_file)
-
-	cur.close()
+				frames.append(sql)
 
 	if len(missed) > 0:
 		print("\nMissed symbols:{0}\n".format(','.join(sorted(missed.keys()))))
+
+	""" Create a temporary CSV file for copying to the database """
+	results = pd.concat(frames)
+	sql_file = "sql_cme.csv"
+	print("Saving to CSV file {0} ...".format(sql_file))
+	results.to_csv(sql_file, sep="\t", header=False, na_rep="\\N", index=False,\
+			columns=[
+			"date",
+			"id", 
+			"exp", 
+			"chain",
+			"open", 
+			"high", 
+			"low", 
+			"close", 
+			"settle", 
+			"vol", 
+			"opi", 
+			"pnl",
+			"logr"])
+
+	try:
+		io = open(sql_file, "r")
+		ids_to_delete = list(results.id.unique())
+		ids_to_delete_str = ','.join("{0}".format(i) for i in ids_to_delete)
+		print("Deleting products {0} in daily_data table ...".format(ids_to_delete_str))
+		cur.execute("delete from daily_data where id in ({0})".format(ids_to_delete_str), connection)
+		print("Copying to daily_data table ...")
+		cur.copy_from(io, "daily_data")
+		io.close()
+	except IOError as e:
+		errno, strerror = e.args
+		print("I/O error ({0}) : {1}".format(errno, strerror))
+	except ValueError:
+		print("No valid integer in line.")
+	except:
+		print("Unexpected error: ", sys.exc_info()[0])
+		raise
+
+	cur.close()
 
 	print("Committing changes to the database ...")
 	connection.commit()
