@@ -6,6 +6,22 @@ import psycopg2 as pg
 import sys, os, re
 from collections import defaultdict
 
+from srf_process import csv2sql
+
+def cleanTS(ts=pd.DataFrame, threshold=0.5):
+	prev_ts = ts.shift(1)
+	post_ts = ts.shift(-1)
+
+	log_prev_ts = np.log(prev_ts)
+	log_ts      = np.log(ts)
+	log_post_ts = np.log(post_ts)
+
+	ts[(log_ts - log_prev_ts > threshold)  & (log_ts - log_post_ts > threshold)]  = np.nan
+	ts[(log_ts - log_prev_ts < -threshold) & (log_ts - log_post_ts < -threshold)] = np.nan
+
+	ts.fillna(method='ffill', inplace=True)
+
+
 def updateDailyData(conn=None, \
 	fields=[
 		"date", 
@@ -64,6 +80,13 @@ def updateDailyData(conn=None, \
 			vol.fillna(0, inplace=True)
 			opi.fillna(0, inplace=True)
 
+			""" Remove outliers """
+			cleanTS(op)
+			cleanTS(hi)
+			cleanTS(lo)
+			cleanTS(cl)
+			cleanTS(st)
+
 			pnl  = st.pct_change(periods=1)
 			logr = np.log(st).diff(periods=1)
 
@@ -104,21 +127,7 @@ def updateDailyData(conn=None, \
 			"pnl",
 			"logr"])
 
-	try:
-		io = open(sql_file, "r")
-		print("Truncating daily_data table ...")
-		cur.execute('truncate table daily_data', conn)
-		print("Copying to daily_data table ...")
-		cur.copy_from(io, "daily_data")
-		io.close()
-	except IOError as e:
-		errno, strerror = e.args
-		print("I/O error ({0}) : {1}".format(errno, strerror))
-	except ValueError:
-		print("No valid integer in line.")
-	except:
-		print("Unexpected error: ", sys.exc_info()[0])
-		raise
+	csv2sql(conn, cur, sql_file, "daily_data")
 
 	cur.close()
 

@@ -6,6 +6,26 @@ import psycopg2 as pg
 import sys, os, re
 from collections import defaultdict
 
+def csv2sql(conn, cur, sql_file, table, truncate=True):
+	try:
+		io = open(sql_file, "r")
+
+		if truncate:
+			print("Truncating {0} table ...".format(table))
+			cur.execute("truncate table {0}".format(table), conn)
+
+		print("Copying to {0} table ...".format(table))
+		cur.copy_from(io, table)
+		io.close()
+	except IOError as e:
+		errno, strerror = e.args
+		print("I/O error ({0}) : {1}".format(errno, strerror))
+	except ValueError:
+		print("No valid integer in line.")
+	except:
+		print("Unexpected error: ", sys.exc_info()[0])
+		raise
+
 
 def uploadSRF(conn=None, srf_path='/Users/chenxu/Work/Data/Futures/SRF_20170111.csv', \
 	fields=['symbol', 'date', 'open', 'high', 'low', 'settle', 'vol', 'opi']):
@@ -123,21 +143,7 @@ def uploadSRF(conn=None, srf_path='/Users/chenxu/Work/Data/Futures/SRF_20170111.
 			"pnl",
 			"logr"])
 
-	try:
-		io = open(sql_file, "r")
-		print("Truncating daily_data table ...")
-		cur.execute('truncate table daily_data', conn)
-		print("Copying to daily_data table ...")
-		cur.copy_from(io, "daily_data")
-		io.close()
-	except IOError as e:
-		errno, strerror = e.args
-		print("I/O error ({0}) : {1}".format(errno, strerror))
-	except ValueError:
-		print("No valid integer in line.")
-	except:
-		print("Unexpected error: ", sys.exc_info()[0])
-		raise
+	csv2sql(conn, cur, sql_file, "daily_data")
 
 	cur.close()
 

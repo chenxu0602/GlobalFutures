@@ -9,6 +9,8 @@ import argparse, datetime, quandl
 
 from quandl.errors.quandl_error import NotFoundError
 
+from srf_process import csv2sql
+
 quandl.ApiConfig.api_key = "d5KcMbVrv2GRC2H9Qrn4"
 fields = ["open", "high", "low", "close", "change", "settle", "volume", "opi"]
 
@@ -104,23 +106,7 @@ if __name__ == "__main__":
 			"pnl",
 			"logr"])
 
-	try:
-		io = open(sql_file, "r")
-		ids_to_delete = list(results.id.unique())
-		ids_to_delete_str = ','.join("{0}".format(i) for i in ids_to_delete)
-		print("Deleting products {0} in daily_data table ...".format(ids_to_delete_str))
-		cur.execute("delete from daily_data where id in ({0})".format(ids_to_delete_str), connection)
-		print("Copying to daily_data table ...")
-		cur.copy_from(io, "daily_data")
-		io.close()
-	except IOError as e:
-		errno, strerror = e.args
-		print("I/O error ({0}) : {1}".format(errno, strerror))
-	except ValueError:
-		print("No valid integer in line.")
-	except:
-		print("Unexpected error: ", sys.exc_info()[0])
-		raise
+	csv2sql(connection, cur, sql_file, "daily_data", False)
 
 	cur.close()
 
