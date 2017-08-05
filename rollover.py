@@ -49,6 +49,8 @@ def mode(l):
 			else:
 				count += 1
 				mean += sorted_freq[0][0]
+				if frq == 1 and count == 3:
+					break
 
 	return (mean / count)
 
@@ -85,8 +87,7 @@ def roll(conn=None, field="vol", last="2016Z"):
 					mon = 1 
 					year += 1
 
-				end[pid][exp] = datetime(year, mon, 1) - timedelta(days=10)
-
+				end[pid][exp] = datetime(year, mon, 1) - timedelta(days=2)
 
 
 	print("Getting the optimal rollover ...")
@@ -191,6 +192,10 @@ def roll(conn=None, field="vol", last="2016Z"):
 
 
 def chain(conn, sql_begin):
+	print("Loading the products data ...")
+	products = pd.read_sql("select id, symbol, month from products", conn)
+	products.set_index(['id'], inplace=True)
+
 	print("Loading the contracts data ...")
 	rolldates = pd.read_sql("select id, exp, start, last, roll from contracts", con=conn)
 	rolldates.set_index(['id', 'exp'], inplace=True)
@@ -198,7 +203,7 @@ def chain(conn, sql_begin):
 
 	print("Loading the daily data ...")
 	dailydata = pd.read_sql(\
-		"select date,id,exp,chain,open,high,low,close,settle,vol,opi,pnl,logr from daily_data where date >= \'{0}\'".format(\
+		"select date,id,exp,open,high,low,close,settle,vol,opi,pnl,logr from daily_data where date >= \'{0}\'".format(\
 		sql_begin), conn)
 	print("Resetting index ...")
 	dailydata.set_index(['id', 'date', 'exp'], inplace=True)
@@ -209,7 +214,8 @@ def chain(conn, sql_begin):
 
 	for pid, df in dailydata.groupby(level='id'):
 		df2 = df.xs(pid, level='id')
-		df_products = rolldates.xs(pid, level='id')
+		df_contracts = rolldates.xs(pid, level='id')
+		months = products.loc[pid, 'month']
 
 		for dt, df3 in df2.groupby(level='date'):
 			df4 = df3.xs(dt, level='date')
@@ -218,18 +224,25 @@ def chain(conn, sql_begin):
 			chain = 0
 			for i in range(0, len(contracts)):
 				con = contracts[i]
-				if not con in df_products.index:
+
+				if not con in df_contracts.index:
 					print("{0} {1} is not among the available contracts".format(pid, con))
 					continue
-				start = df_products.loc[con, 'start']
-				roll  = df_products.loc[con, 'roll']
+
+				if not con[-1] in list(months):
+					print("{0} {1} is not among the good months {2}".format(pid, con, months))
+					continue
+
+				start = df_contracts.loc[con, 'start']
+				roll  = df_contracts.loc[con, 'roll']
 
 				if dt.date() >= start and dt.date() <= roll:
 					chain += 1
+					dailydata.loc[(pid, dt, con), 'chain'] = chain
+					print("Product {0}  {1}    {2}   chain: {3}".format(pid, dt.strftime("%Y-%m-%d"), con, chain))	
 
-				dailydata.loc[(pid, dt, con), 'chain'] = chain
-				print("Product {0}  {1}    {2}   chain: {3}".format(pid, dt.strftime("%Y-%m-%d"), con, chain))	
-
+	print("Setting chain value NaN to 0 ...")
+	dailydata['chain'].fillna(0, inplace=True)
 	print("Converting daily data chain to integer ...")
 	dailydata['chain'] = dailydata['chain'].astype(int)
 
@@ -268,12 +281,10 @@ if __name__ == "__main__":
 	
 	connection = pg.connect(host="localhost", database="futures", user="chenxu", password="")
 	
-	"""
 	print("Calculating the rollover dates ...")
 	data = roll(connection)
-	"""
 
 	print("Set the chain numbers ...")
-	data = chain(connection, '2000-01-01')
+	data = chain(connection, '1997-01-01')
 
 	connection.close()
