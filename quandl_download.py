@@ -43,7 +43,7 @@ if __name__ == "__main__":
 		dest="rootdir", help="root directory")
 	parser.add_argument("--startyear", nargs="?", type=int, default=2015, dest="startyear", help="start year")
 	parser.add_argument("--yearbeyond", nargs="?", type=int, default=1, dest="yearbeyond", help="how many years further")
-	parser.add_argument("--productfile", nargs="?", type=str, default="products.csv", dest="productfile", 
+	parser.add_argument("--productfile", nargs="?", type=str, default="ICE.csv", dest="productfile", 
 		help="product file")
 	parser.add_argument("--outputdir", nargs="?", type=str, default="rawdata", dest="outputdir", help="output dir")
 	parser.add_argument("--products", nargs="*", type=str, default=[], dest="products", help="product list")
@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
 	for sym in sorted(products.index):
 		if not args.products or sym in args.products:
-			exch, mult, months = products.loc[sym, ["Exchange", "Multiplier", "Expirations"]]
+			exch, months = products.loc[sym, ["Exchange", "Months"]]
 
 			results = defaultdict(pd.DataFrame)
 			for contract in next_contract(args.startyear, curdate.year, 
@@ -101,9 +101,8 @@ if __name__ == "__main__":
 									print("{0} doesn't exist!".format(fld))
 							elif fld == "Close":
 								if "Last" in data.columns:
+									print("{0} rename {1} to {2}".format(ticker, "Last", fld))
 									data.rename(columns={"Last" : fld}, inplace=True)
-								elif "Settle" in data.columns:
-									data.rename(columns={"Settle" : fld}, inplace=True)
 								else:
 									print("{0} doesn't exist!".format(fld))
 							else:
